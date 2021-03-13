@@ -63,8 +63,8 @@ impl<T, const N: usize> AtomicVec<T, N> {
             assert!(cur < N, "AtomicVec out of capacity");
 
             // Attempt to reserve this index
-            if self.in_use.compare_and_swap(cur, cur + 1,
-                                            Ordering::SeqCst) == cur {
+            if self.in_use.compare_exchange_weak(cur, cur + 1,
+                                            Ordering::SeqCst, Ordering::SeqCst).unwrap() == cur {
                 break cur;
             }
         };
