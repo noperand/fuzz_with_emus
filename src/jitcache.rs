@@ -1,41 +1,55 @@
-use std::sync::Mutex;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::collections::BTreeMap;
 use crate::mmu::VirtAddr;
+use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Mutex;
 
-#[cfg(target_os="windows")]
+#[cfg(target_os = "windows")]
 pub fn alloc_rwx(size: usize) -> &'static mut [u8] {
-    extern {
-        fn VirtualAlloc(lpAddress: *const u8, dwSize: usize,
-                        flAllocationType: u32, flProtect: u32) -> *mut u8;
+    extern "C" {
+        fn VirtualAlloc(
+            lpAddress: *const u8,
+            dwSize: usize,
+            flAllocationType: u32,
+            flProtect: u32,
+        ) -> *mut u8;
     }
 
     unsafe {
         const PAGE_EXECUTE_READWRITE: u32 = 0x40;
 
-        const MEM_COMMIT:  u32 = 0x00001000;
+        const MEM_COMMIT: u32 = 0x00001000;
         const MEM_RESERVE: u32 = 0x00002000;
 
-        let ret = VirtualAlloc(0 as *const _, size, MEM_COMMIT | MEM_RESERVE,
-                               PAGE_EXECUTE_READWRITE);
+        let ret = VirtualAlloc(
+            0 as *const _,
+            size,
+            MEM_COMMIT | MEM_RESERVE,
+            PAGE_EXECUTE_READWRITE,
+        );
         assert!(!ret.is_null());
 
         std::slice::from_raw_parts_mut(ret, size)
     }
 }
 
-#[cfg(target_os="linux")]
+#[cfg(target_os = "linux")]
 pub fn alloc_rwx(size: usize) -> &'static mut [u8] {
-    extern {
-        fn mmap(addr: *mut u8, length: usize, prot: i32, flags: i32, fd: i32,
-                offset: usize) -> *mut u8;
+    extern "C" {
+        fn mmap(
+            addr: *mut u8,
+            length: usize,
+            prot: i32,
+            flags: i32,
+            fd: i32,
+            offset: usize,
+        ) -> *mut u8;
     }
 
     unsafe {
         // Alloc RWX and MAP_PRIVATE | MAP_ANON
         let ret = mmap(0 as *mut u8, size, 7, 34, -1, 0);
         assert!(!ret.is_null());
-        
+
         std::slice::from_raw_parts_mut(ret, size)
     }
 }
@@ -92,11 +106,11 @@ impl JitCache {
     pub fn new(max_guest_addr: VirtAddr) -> Self {
         JitCache {
             // Allocate a zeroed out block cache
-            blocks: (0..(max_guest_addr.0 + 3) / 4).map(|_| {
-                AtomicUsize::new(0)
-            }).collect::<Vec<_>>().into_boxed_slice(),
-            jit:
-                Mutex::new((alloc_rwx(256 * 1024 * 1024), 0, BTreeMap::new())),
+            blocks: (0..(max_guest_addr.0 + 3) / 4)
+                .map(|_| AtomicUsize::new(0))
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
+            jit: Mutex::new((alloc_rwx(256 * 1024 * 1024), 0, BTreeMap::new())),
         }
     }
 
@@ -130,8 +144,12 @@ impl JitCache {
     /// Add a JIT to the JIT cache, the `code` are the raw bytes of the
     /// compiled JIT and the `BTreeMap` converts guest addresses into JIT
     /// addresses
-    pub fn add_mappings(&self, addr: VirtAddr, code: &[u8],
-                        mappings: &BTreeMap<VirtAddr, usize>) -> usize {
+    pub fn add_mappings(
+        &self,
+        addr: VirtAddr,
+        code: &[u8],
+        mappings: &BTreeMap<VirtAddr, usize>,
+    ) -> usize {
         // Get exclusive access to the JIT
         let mut jit = self.jit.lock().unwrap();
 
@@ -153,7 +171,7 @@ impl JitCache {
             let align_size = (code.len() + 0x3f) & !0x3f;
 
             // Number of remaining bytes in the JIT storage
-            let jit_inuse  = jit.1;
+            let jit_inuse = jit.1;
             let jit_remain = jit.0.len() - jit_inuse;
             assert!(jit_remain > align_size, "Out of space in JIT");
 
@@ -162,7 +180,7 @@ impl JitCache {
 
             // Compute the address of the JIT we're inserting
             let new_addr = jit.0[jit_inuse..].as_ptr() as usize;
-            
+
             // Update the in use for the JIT
             jit.1 += align_size;
 
@@ -181,4 +199,3 @@ impl JitCache {
         self.lookup(addr).unwrap()
     }
 }
-

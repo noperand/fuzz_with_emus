@@ -6,10 +6,10 @@
 
 extern crate alloc;
 
-use core::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
-use core::alloc::Layout;
-use alloc::boxed::Box;
 use alloc::alloc::alloc_zeroed;
+use alloc::boxed::Box;
+use core::alloc::Layout;
+use core::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
 
 /// A fixed-capacity insert-only vector which allows multi-threaded insertion
 /// via atomics.
@@ -31,8 +31,7 @@ impl<T, const N: usize> AtomicVec<T, N> {
     pub fn new() -> Self {
         // Determine the layout for an allocation to satisfy an array of `N`
         // `AtomicPtr<T>`'s
-        let layout = Layout::array::<AtomicPtr<T>>(N)
-            .expect("Invalid shape for AtomicVec");
+        let layout = Layout::array::<AtomicPtr<T>>(N).expect("Invalid shape for AtomicVec");
 
         // Create a zeroed allocation, which will be all null atomic pointers
         let allocation = unsafe { alloc_zeroed(layout) };
@@ -40,17 +39,21 @@ impl<T, const N: usize> AtomicVec<T, N> {
         assert!(!allocation.is_null(), "Allocation failure for AtomicVec");
 
         // Return out the empty `AtomicVec`
-        AtomicVec { 
+        AtomicVec {
             backing: unsafe { Box::from_raw(allocation) },
-            in_use:  AtomicUsize::new(0),
+            in_use: AtomicUsize::new(0),
         }
     }
 
     /// Get the length of this vector, in elements
-    pub fn len(&self) -> usize { self.in_use.load(Ordering::SeqCst) }
+    pub fn len(&self) -> usize {
+        self.in_use.load(Ordering::SeqCst)
+    }
 
     /// Get the capacity of this vector, in elements
-    pub const fn capacity(&self) -> usize { N }
+    pub const fn capacity(&self) -> usize {
+        N
+    }
 
     /// Push an element to the vector
     #[track_caller]
@@ -63,15 +66,22 @@ impl<T, const N: usize> AtomicVec<T, N> {
             assert!(cur < N, "AtomicVec out of capacity");
 
             // Attempt to reserve this index
-            if self.in_use.compare_exchange_weak(cur, cur + 1,
-                                            Ordering::SeqCst, Ordering::SeqCst).unwrap() == cur {
+            if self
+                .in_use
+                .compare_exchange_weak(cur, cur + 1, Ordering::SeqCst, Ordering::SeqCst)
+                .unwrap()
+                == cur
+            {
                 break cur;
             }
         };
 
         // Store the element into the array!
         let ptr = Box::into_raw(element);
-        assert!(!ptr.is_null(), "Whoa, can't use a null pointer in AtomicVec");
+        assert!(
+            !ptr.is_null(),
+            "Whoa, can't use a null pointer in AtomicVec"
+        );
         self.backing[idx].store(ptr, Ordering::SeqCst);
     }
 
@@ -83,7 +93,9 @@ impl<T, const N: usize> AtomicVec<T, N> {
 
         // If the pointer is null, this entry is not filled in yet, thus return
         // `None`
-        if ptr.is_null() { return None; }
+        if ptr.is_null() {
+            return None;
+        }
 
         // Return out a Rust reference to the contents
         Some(unsafe { &*ptr })
@@ -100,7 +112,9 @@ impl<T, const N: usize> Drop for AtomicVec<T, N> {
             // If the pointer was non-null, convert it back into a `Box` and
             // let it drop
             if !ptr.is_null() {
-                unsafe { Box::from_raw(ptr); }
+                unsafe {
+                    Box::from_raw(ptr);
+                }
             }
         }
     }
@@ -120,4 +134,3 @@ mod tests {
         }
     }
 }
-

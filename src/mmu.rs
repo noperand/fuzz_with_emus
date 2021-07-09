@@ -1,10 +1,10 @@
 //! A software MMU with byte level permissions and uninitialized memory access
 //! detection
 
-use std::path::Path;
-use std::collections::HashMap;
 use crate::emulator::VmExit;
 use crate::primitive::Primitive;
+use std::collections::HashMap;
+use std::path::Path;
 
 /// Block size used for resetting and tracking memory which has been modified
 /// The larger this is, the fewer but more expensive memcpys() need to occur,
@@ -18,10 +18,10 @@ const DISABLE_UNINIT: bool = true;
 
 // Don't change these, they're hardcoded in the JIT (namely write vs raw dist,
 // during raw bit updates in writes)
-pub const PERM_READ:  u8 = 1 << 0;
+pub const PERM_READ: u8 = 1 << 0;
 pub const PERM_WRITE: u8 = 1 << 1;
-pub const PERM_EXEC:  u8 = 1 << 2;
-pub const PERM_RAW:   u8 = 1 << 3;
+pub const PERM_EXEC: u8 = 1 << 2;
+pub const PERM_RAW: u8 = 1 << 3;
 
 /// Accessed bit, set when the byte is read, but not when it is written
 pub const PERM_ACC: u8 = 1 << 4;
@@ -39,10 +39,10 @@ pub struct VirtAddr(pub usize);
 
 /// Section information for a file
 pub struct Section {
-    pub file_off:    usize,
-    pub virt_addr:   VirtAddr,
-    pub file_size:   usize,
-    pub mem_size:    usize,
+    pub file_off: usize,
+    pub virt_addr: VirtAddr,
+    pub file_size: usize,
+    pub mem_size: usize,
     pub permissions: Perm,
 }
 
@@ -85,7 +85,7 @@ impl DirtyState {
         // Determine the bitmap position of the dirty block
         let idx = block / 64;
         let bit = block % 64;
-        
+
         // Check if the block is not dirty
         if self.dirty_bitmap[idx] & (1 << bit) == 0 {
             // Block is not dirty, add it to the dirty list
@@ -101,12 +101,12 @@ impl Mmu {
     /// Create a new memory space which can hold `size` bytes
     pub fn new(size: usize) -> Self {
         Mmu {
-            memory:      vec![0; size],
+            memory: vec![0; size],
             permissions: vec![Perm(0); size],
-            cur_alc:     VirtAddr(0x10000),
+            cur_alc: VirtAddr(0x10000),
             active_alcs: Default::default(),
             dirty_state: DirtyState {
-                dirty:        Vec::with_capacity(size / DIRTY_BLOCK_SIZE + 1),
+                dirty: Vec::with_capacity(size / DIRTY_BLOCK_SIZE + 1),
                 dirty_bitmap: vec![0u64; size / DIRTY_BLOCK_SIZE / 64 + 1],
             },
         }
@@ -117,14 +117,14 @@ impl Mmu {
         let size = self.memory.len();
 
         Mmu {
-            memory:      self.memory.clone(),
+            memory: self.memory.clone(),
             permissions: self.permissions.clone(),
-            cur_alc:     self.cur_alc.clone(),
+            cur_alc: self.cur_alc.clone(),
             active_alcs: self.active_alcs.clone(),
             dirty_state: DirtyState {
-                dirty:        Vec::with_capacity(size / DIRTY_BLOCK_SIZE + 1),
+                dirty: Vec::with_capacity(size / DIRTY_BLOCK_SIZE + 1),
                 dirty_bitmap: vec![0u64; size / DIRTY_BLOCK_SIZE / 64 + 1],
-            }
+            },
         }
     }
 
@@ -134,7 +134,7 @@ impl Mmu {
         for &block in &self.dirty_state.dirty {
             // Get the start and end addresses of the dirtied memory
             let start = block * DIRTY_BLOCK_SIZE;
-            let end   = (block + 1) * DIRTY_BLOCK_SIZE;
+            let end = (block + 1) * DIRTY_BLOCK_SIZE;
 
             // Zero the bitmap. This hits wide, but it's fine, we have to do
             // a 64-bit write anyways, no reason to compute the bit index
@@ -144,8 +144,7 @@ impl Mmu {
             self.memory[start..end].copy_from_slice(&other.memory[start..end]);
 
             // Restore permissions
-            self.permissions[start..end].copy_from_slice(
-                &other.permissions[start..end]);
+            self.permissions[start..end].copy_from_slice(&other.permissions[start..end]);
         }
 
         // Clear the dirty list
@@ -216,29 +215,34 @@ impl Mmu {
     }
 
     /// Apply permissions to a region of memory
-    pub fn set_permissions(&mut self, addr: VirtAddr, size: usize,
-                           mut perm: Perm) -> Option<()> {
+    pub fn set_permissions(&mut self, addr: VirtAddr, size: usize, mut perm: Perm) -> Option<()> {
         // Fast path, nothing to change
-        if size == 0 { return Some(()); }
+        if size == 0 {
+            return Some(());
+        }
 
         if DISABLE_UNINIT {
             // If memory is marked as RAW, mark it as readable right away if
             // we have uninit tracking disabled
-            if perm.0 & PERM_RAW != 0 { perm.0 |= PERM_READ; }
+            if perm.0 & PERM_RAW != 0 {
+                perm.0 |= PERM_READ;
+            }
         }
 
         // Apply permissions
-        self.permissions.get_mut(addr.0..addr.0.checked_add(size)?)?
-            .iter_mut().for_each(|x| *x = perm);
-        
+        self.permissions
+            .get_mut(addr.0..addr.0.checked_add(size)?)?
+            .iter_mut()
+            .for_each(|x| *x = perm);
+
         // Compute dirty bit blocks
         let block_start = addr.0 / DIRTY_BLOCK_SIZE;
-        let block_end   = (addr.0 + size) / DIRTY_BLOCK_SIZE;
+        let block_end = (addr.0 + size) / DIRTY_BLOCK_SIZE;
         for block in block_start..=block_end {
             // Determine the bitmap position of the dirty block
             let idx = block / 64;
             let bit = block % 64;
-            
+
             // Check if the block is not dirty
             if self.dirty_state.dirty_bitmap[idx] & (1 << bit) == 0 {
                 // Block is not dirty, add it to the dirty list
@@ -283,11 +287,16 @@ impl Mmu {
     }
 
     /// Write the bytes from `buf` into `addr`
-    pub fn write_from(&mut self, addr: VirtAddr, buf: &[u8])
-            -> Result<(), VmExit> {
-        let perms =
-            self.permissions.get_mut(addr.0..addr.0.checked_add(buf.len())
-                .ok_or(VmExit::AddressIntegerOverflow)?)
+    pub fn write_from(&mut self, addr: VirtAddr, buf: &[u8]) -> Result<(), VmExit> {
+        let perms = self
+            .permissions
+            .get_mut(
+                addr.0
+                    ..addr
+                        .0
+                        .checked_add(buf.len())
+                        .ok_or(VmExit::AddressIntegerOverflow)?,
+            )
             .ok_or(VmExit::AddressMiss(addr, buf.len()))?;
 
         // Check permissions
@@ -308,12 +317,12 @@ impl Mmu {
 
         // Compute dirty bit blocks
         let block_start = addr.0 / DIRTY_BLOCK_SIZE;
-        let block_end   = (addr.0 + buf.len()) / DIRTY_BLOCK_SIZE;
+        let block_end = (addr.0 + buf.len()) / DIRTY_BLOCK_SIZE;
         for block in block_start..=block_end {
             // Determine the bitmap position of the dirty block
             let idx = block / 64;
             let bit = block % 64;
-            
+
             // Check if the block is not dirty
             if self.dirty_state.dirty_bitmap[idx] & (1 << bit) == 0 {
                 // Block is not dirty, add it to the dirty list
@@ -336,22 +345,37 @@ impl Mmu {
 
         Ok(())
     }
-    
+
     /// Return a mutable slice to permissions at `addr` for `size` bytes
-    pub fn peek_perms(&mut self, addr: VirtAddr, size: usize)
-            -> Result<&mut [Perm], VmExit> {
-        self.permissions.get_mut(addr.0..addr.0.checked_add(size)
-            .ok_or(VmExit::AddressIntegerOverflow)?)
+    pub fn peek_perms(&mut self, addr: VirtAddr, size: usize) -> Result<&mut [Perm], VmExit> {
+        self.permissions
+            .get_mut(
+                addr.0
+                    ..addr
+                        .0
+                        .checked_add(size)
+                        .ok_or(VmExit::AddressIntegerOverflow)?,
+            )
             .ok_or(VmExit::AddressMiss(addr, size))
     }
- 
+
     /// Return a mutable slice to memory at `addr` for `size` bytes that
     /// has been validated to match all `exp_perms`
-    pub fn peek(&mut self, addr: VirtAddr, size: usize,
-                exp_perms: Perm) -> Result<&mut [u8], VmExit> {
-        let perms =
-            self.permissions.get_mut(addr.0..addr.0.checked_add(size)
-                .ok_or(VmExit::AddressIntegerOverflow)?)
+    pub fn peek(
+        &mut self,
+        addr: VirtAddr,
+        size: usize,
+        exp_perms: Perm,
+    ) -> Result<&mut [u8], VmExit> {
+        let perms = self
+            .permissions
+            .get_mut(
+                addr.0
+                    ..addr
+                        .0
+                        .checked_add(size)
+                        .ok_or(VmExit::AddressIntegerOverflow)?,
+            )
             .ok_or(VmExit::AddressMiss(addr, size))?;
 
         // Check permissions
@@ -390,19 +414,29 @@ impl Mmu {
                 self.dirty_state.update_dirty(VirtAddr(addr.0 + ii));
             }
         }
-       
+
         // Return a slice to the memory
         Ok(&mut self.memory[addr.0..addr.0 + size])
     }
-   
+
     /// Read the memory at `addr` into `buf`
     /// This function checks to see if all bits in `exp_perms` are set in the
     /// permission bytes. If this is zero, we ignore permissions entirely.
-    pub fn read_into_perms(&mut self, addr: VirtAddr, buf: &mut [u8],
-                           exp_perms: Perm) -> Result<(), VmExit> {
-        let perms =
-            self.permissions.get_mut(addr.0..addr.0.checked_add(buf.len())
-                .ok_or(VmExit::AddressIntegerOverflow)?)
+    pub fn read_into_perms(
+        &mut self,
+        addr: VirtAddr,
+        buf: &mut [u8],
+        exp_perms: Perm,
+    ) -> Result<(), VmExit> {
+        let perms = self
+            .permissions
+            .get_mut(
+                addr.0
+                    ..addr
+                        .0
+                        .checked_add(buf.len())
+                        .ok_or(VmExit::AddressIntegerOverflow)?,
+            )
             .ok_or(VmExit::AddressMiss(addr, buf.len()))?;
 
         // Check permissions
@@ -422,7 +456,7 @@ impl Mmu {
 
         // Copy the memory
         buf.copy_from_slice(&self.memory[addr.0..addr.0 + buf.len()]);
-        
+
         // Indicate that this memory has been accessed
         for (ii, perm) in perms.iter_mut().enumerate() {
             perm.0 |= PERM_ACC;
@@ -433,31 +467,30 @@ impl Mmu {
     }
 
     /// Read the memory at `addr` into `buf`
-    pub fn read_into(&mut self, addr: VirtAddr, buf: &mut [u8])
-            -> Result<(), VmExit> {
+    pub fn read_into(&mut self, addr: VirtAddr, buf: &mut [u8]) -> Result<(), VmExit> {
         self.read_into_perms(addr, buf, Perm(PERM_READ))
     }
 
     /// Read a type `T` at `vaddr` expecting `perms`
-    pub fn read_perms<T: Primitive>(&mut self, addr: VirtAddr,
-                                    exp_perms: Perm) -> Result<T, VmExit> {
+    pub fn read_perms<T: Primitive>(
+        &mut self,
+        addr: VirtAddr,
+        exp_perms: Perm,
+    ) -> Result<T, VmExit> {
         let mut tmp = [0u8; 16];
-        self.read_into_perms(addr, &mut tmp[..core::mem::size_of::<T>()],
-            exp_perms)?;
+        self.read_into_perms(addr, &mut tmp[..core::mem::size_of::<T>()], exp_perms)?;
         Ok(unsafe { core::ptr::read_unaligned(tmp.as_ptr() as *const T) })
     }
-    
+
     /// Read a type `T` at `vaddr`
     pub fn read<T: Primitive>(&mut self, addr: VirtAddr) -> Result<T, VmExit> {
         self.read_perms(addr, Perm(PERM_READ))
     }
-    
+
     /// Write a `val` to `addr`
-    pub fn write<T: Primitive>(&mut self, addr: VirtAddr,
-                               val: T) -> Result<(), VmExit> {
+    pub fn write<T: Primitive>(&mut self, addr: VirtAddr, val: T) -> Result<(), VmExit> {
         let tmp = unsafe {
-            core::slice::from_raw_parts(&val as *const T as *const u8,
-                                        core::mem::size_of::<T>())
+            core::slice::from_raw_parts(&val as *const T as *const u8, core::mem::size_of::<T>())
         };
 
         self.write_from(addr, tmp)
@@ -465,45 +498,42 @@ impl Mmu {
 
     /// Load a file into the emulators address space using the sections as
     /// described
-    pub fn load<P: AsRef<Path>>(&mut self, filename: P,
-                                sections: &[Section]) -> Option<()> {
+    pub fn load<P: AsRef<Path>>(&mut self, filename: P, sections: &[Section]) -> Option<()> {
         // Read the input file
         let contents = std::fs::read(filename).ok()?;
 
         // Go through each section and load it
         for section in sections {
             // Set memory to writable
-            self.set_permissions(section.virt_addr, section.mem_size,
-                                        Perm(PERM_WRITE))?;
+            self.set_permissions(section.virt_addr, section.mem_size, Perm(PERM_WRITE))?;
 
             // Write in the original file contents
-            self.write_from(section.virt_addr,
-                contents.get(
-                    section.file_off..
-                    section.file_off.checked_add(section.file_size)?)?
-                ).ok()?;
+            self.write_from(
+                section.virt_addr,
+                contents.get(section.file_off..section.file_off.checked_add(section.file_size)?)?,
+            )
+            .ok()?;
 
             // Write in any padding with zeros
             if section.mem_size > section.file_size {
                 let padding = vec![0u8; section.mem_size - section.file_size];
                 self.write_from(
-                    VirtAddr(section.virt_addr.0
-                             .checked_add(section.file_size)?),
-                    &padding).ok()?;
+                    VirtAddr(section.virt_addr.0.checked_add(section.file_size)?),
+                    &padding,
+                )
+                .ok()?;
             }
-            
+
             // Demote permissions to originals
-            self.set_permissions(section.virt_addr, section.mem_size,
-                                        section.permissions)?;
+            self.set_permissions(section.virt_addr, section.mem_size, section.permissions)?;
 
             // Update the allocator beyond any sections we load
             self.cur_alc = VirtAddr(std::cmp::max(
                 self.cur_alc.0,
-                (section.virt_addr.0 + section.mem_size + 0xfff) & !0xfff
+                (section.virt_addr.0 + section.mem_size + 0xfff) & !0xfff,
             ));
         }
 
         Some(())
     }
 }
-

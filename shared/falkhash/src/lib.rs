@@ -2,7 +2,7 @@ use core::arch::x86_64::*;
 
 /// Structure which gives access to a `hash` member function, allowing 128-bit
 /// non-cryptographic-hashing of a slice of bytes
-/// 
+///
 /// This structure exists only to protect access to the `hash` function by first
 /// validating that the current CPU has AES-NI instructions available for use.
 /// This check is done when `FalkHasher::new()` is used to create a new hasher
@@ -14,9 +14,11 @@ pub struct FalkHasher(());
 impl FalkHasher {
     /// Create a new `FalkHasher`
     pub fn new() -> Self {
-        // Make sure AES-NI is present on this CPU                              
-        assert!(std::is_x86_feature_detected!("aes"),                           
-            "AES-NI instructions not present, required for falkhash");    
+        // Make sure AES-NI is present on this CPU
+        assert!(
+            std::is_x86_feature_detected!("aes"),
+            "AES-NI instructions not present, required for falkhash"
+        );
 
         // If AES is present it's safe to return an object which allows
         // use of `falkhash` from this point on
@@ -36,9 +38,7 @@ impl FalkHasher {
 unsafe fn falkhash_int(buffer: &[u8]) -> u128 {
     // Seed is initialized with random values, and also takes into account the
     // buffer length
-    let seed =
-        _mm_set_epi64x(0x2a4ba81ac0bfd4fe + buffer.len() as i64,
-                       0x52c8611d3941be6a);
+    let seed = _mm_set_epi64x(0x2a4ba81ac0bfd4fe + buffer.len() as i64, 0x52c8611d3941be6a);
 
     // Hash starts out as the seed value
     let mut hash = seed;
@@ -46,7 +46,7 @@ unsafe fn falkhash_int(buffer: &[u8]) -> u128 {
     // Scratch buffer used to pad out buffers to 0x50 bytes if they are not
     // evenly divisble by 0x50
     let mut tmp = [0u8; 0x50];
-    
+
     // Go through each 0x50 byte chunk
     for chunk in buffer.chunks(0x50) {
         // Check if this chunk is large enough for our operation size

@@ -3,8 +3,7 @@
 #[cfg(unix)]
 pub fn set_affinity(core: usize) -> Result<(), ()> {
     extern "system" {
-        fn sched_setaffinity(pid: usize, cpusetsize: usize,
-                             mask: *const usize) -> i32;
+        fn sched_setaffinity(pid: usize, cpusetsize: usize, mask: *const usize) -> i32;
     }
 
     const USIZE_BITS: usize = core::mem::size_of::<usize>() * 8;
@@ -13,8 +12,7 @@ pub fn set_affinity(core: usize) -> Result<(), ()> {
     mask[core / USIZE_BITS] |= 1 << (core % USIZE_BITS);
 
     unsafe {
-        if sched_setaffinity(0, std::mem::size_of_val(&mask),
-                mask.as_ptr()) == 0 {
+        if sched_setaffinity(0, std::mem::size_of_val(&mask), mask.as_ptr()) == 0 {
             Ok(())
         } else {
             Err(())
@@ -26,8 +24,7 @@ pub fn set_affinity(core: usize) -> Result<(), ()> {
 pub fn set_affinity(core: usize) -> Result<(), ()> {
     extern "system" {
         fn GetCurrentThread() -> usize;
-        fn SetThreadAffinityMask(hThread: usize,
-                                 dwThreadAffinityMask: usize) -> usize;
+        fn SetThreadAffinityMask(hThread: usize, dwThreadAffinityMask: usize) -> usize;
     }
 
     assert!(core < 64, "Yeah, we don't support more than 64 cores here");
@@ -40,4 +37,3 @@ pub fn set_affinity(core: usize) -> Result<(), ()> {
         }
     }
 }
-
