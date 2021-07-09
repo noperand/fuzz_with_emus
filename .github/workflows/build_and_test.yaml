@@ -4,8 +4,10 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     steps:
-      - name: Update and install rustup
-        run: sudo apt update && sudo apt install rustup && rustup update
+      - name: Install rustup
+        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+      - name: Install rust
+        run: rustup install nightly
       - name: Check out repository code
         uses: actions/checkout@v2
       - name: Build using Cargo and Run All Tests
