@@ -5,9 +5,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Update and install rustup
-      - run: apt update && apt install rustup
-      - run: rustup update
+        run: apt update && apt install rustup && rustup update
       - name: Check out repository code
         uses: actions/checkout@v2
       - name: Build using Cargo and Run All Tests
-      - run: cd {{github.workspace}} && cargo build && cargo test
+        run: cd {{github.workspace}} && cargo build && cargo test
