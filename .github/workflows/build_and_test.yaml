@@ -4,15 +4,16 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     steps:
+      - name: Check out repository code
+        uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
         with:
             toolchain: nightly
             override: true
             components: rustfmt, clippy
-
-      - name: Check out repository code
-        uses: actions/checkout@v2
 
       - name: Run cargo check
         uses: actions-rs/cargo@v1
