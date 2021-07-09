@@ -5,8 +5,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install rustup
-        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -y
-      - name: Install rust
+        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -O /tmp/rustup | sh /tmp/rustup -y
+      - name: Install rust nightly
         run: rustup install nightly
       - name: Check out repository code
         uses: actions/checkout@v2
