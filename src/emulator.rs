@@ -903,8 +903,8 @@ impl Emulator {
                         // Bounds the hash to the table
                         hash %= ct.len();
 
-                        if ct[hash].0.compare_and_swap(COVERAGE_ENTRY_EMPTY,
-                                COVERAGE_ENTRY_PENDING, Ordering::SeqCst) ==
+                        if ct[hash].0.compare_exchange_weak(COVERAGE_ENTRY_EMPTY,
+                                COVERAGE_ENTRY_PENDING, Ordering::SeqCst, Ordering::SeqCst).unwrap() ==
                                 COVERAGE_ENTRY_EMPTY {
                             // We own the entry, fill it in
                             ct[hash].1.store($to,   Ordering::SeqCst);
@@ -2605,7 +2605,7 @@ static int report_coverage(struct _state *__restrict const state,
         hash %= {cov_table_len}ULL;
 
         if(ct[hash][0] == {EMPTY}ULL &&
-                __sync_val_compare_and_swap(&ct[hash][0], {EMPTY}ULL,
+                __sync_val_compare_exchange(&ct[hash][0], {EMPTY}ULL,
                 {PENDING}ULL) == {EMPTY}ULL) {{
             // We own the entry, fill it in
             __atomic_store_n(&ct[hash][1], to,   __ATOMIC_SEQ_CST);
