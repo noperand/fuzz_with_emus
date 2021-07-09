@@ -4,11 +4,14 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     steps:
-      - name: Install rustup
-        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -O rustup.sh | sh rustup.sh -y
-      - name: Install rust nightly
-        run: rustup install nightly
-      - name: Check out repository code
-        uses: actions/checkout@v2
-      - name: Build using Cargo and Run All Tests
-        run: cd {{github.workspace}} && cargo build && cargo test
+      - name: Install latest nightly
+        uses: actions-rs/toolchain@v1
+        with:
+            toolchain: nightly
+            override: true
+            components: rustfmt, clippy
+
+      - name: Run cargo check
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
