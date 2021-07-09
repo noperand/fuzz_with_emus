@@ -20,7 +20,7 @@ jobs:
         with:
           command: check
 
-      - name: Run cargo build
+      - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
-          command: build
+          command: test
