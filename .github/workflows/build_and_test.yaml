@@ -8,11 +8,6 @@ jobs:
         uses: actions/checkout@v2
         with:
           submodules: 'recursive'
-      - name: Check out basic mutator code
-        uses: actions/checkout@v2
-        with:
-          repository: 'gamozolabs/basic_mutator'
-          path: '../mutator'
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
         with:
